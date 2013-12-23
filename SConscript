@@ -43,50 +43,19 @@ int main()
   return 0;
 }
 """
+
     context.Message('Checking if we can build against Python... ')
-    try:
-        import distutils.sysconfig
-    except ImportError:
-        context.Result(0)
-        print 'Failed to import distutils.sysconfig.'
-        return False
-    context.env.AppendUnique(CPPPATH=[distutils.sysconfig.get_python_inc()])
-    libDir = distutils.sysconfig.get_config_var("LIBDIR")
-    context.env.AppendUnique(LIBPATH=[libDir])
-    libfile = distutils.sysconfig.get_config_var("LIBRARY")
-    import re
-    match = re.search("(python.*)\.(a|so|dylib)", libfile)
-    if match:
-        context.env.AppendUnique(LIBS=[match.group(1)])
-        if match.group(2) == 'a':
-            flags = distutils.sysconfig.get_config_var('LINKFORSHARED')
-            if flags is not None:
-                context.env.AppendUnique(LINKFLAGS=flags.split())
-    flags = [f for f in " ".join(distutils.sysconfig.get_config_vars("MODLIBS", "SHLIBS")).split()
-             if f != "-L"]
-    context.env.MergeFlags(" ".join(flags))
+    context.env.ParseConfig("python-config --includes --ldflags")
+
     result, output = context.TryRun(python_source_file,'.cpp')
-    if not result and context.env["PLATFORM"] == 'darwin':
-        # Sometimes we need some extra stuff on Mac OS
-        frameworkDir = libDir       # search up the libDir tree for the proper home for frameworks
-        while frameworkDir and frameworkDir != "/":
-            frameworkDir, d2 = os.path.split(frameworkDir)
-            if d2 == "Python.framework":
-                if not "Python" in os.listdir(os.path.join(frameworkDir, d2)):
-                    context.Result(0)
-                    print (
-                        "Expected to find Python in framework directory %s, but it isn't there"
-                        % frameworkDir)
-                    return False
-                break
-        context.env.AppendUnique(LINKFLAGS="-F%s" % frameworkDir)
-        result, output = context.TryRun(python_source_file,'.cpp')
+
     if not result:
         context.Result(0)
         print "Cannot run program built with Python."
         return False
     if context.env["PLATFORM"] == "darwin":
         context.env["LDMODULESUFFIX"] = ".so"
+
     context.Result(1)
     return True
 
